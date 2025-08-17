@@ -24,10 +24,10 @@ max_length = 256 # длина батча
 min_stride = 128
 max_stride = 230
 num_workers = max(1, os.cpu_count() or 4)
-max_chunk_lines = 2000 # Количество строк в чанке
+max_chunk_lines = 500 # Количество строк в чанке
 tokenizer_train_lines = 100000  # Строки для обучения токенизатора
 random_seed = 42
-sample_limit = 721241    # Ограничение для выборки обучения токенизатора
+sample_limit = 30000    # Ограничение для выборки обучения токенизатора
 
 
 def analyze_file(filepath: str):
@@ -162,7 +162,7 @@ def tokenize_record(record, tokenizer_path, max_length, min_stride, max_stride):
 def tokenize_chunk(chunk_lines, tokenizer_path, max_length, min_stride, max_stride, chunk_id):
     try:
         all_fragments = []
-        for i, line in enumerate(tqdm(chunk_lines, desc=f"Токенизация чанка {chunk_id}")):
+        for i, line in enumerate(chunk_lines):
             fragments = tokenize_record(line, tokenizer_path, max_length, min_stride, max_stride)
             if fragments:
                 all_fragments.extend(fragments)
@@ -234,13 +234,11 @@ def main():
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         for chunk in stream_chunks(input_path, max_lines, max_chunk_lines):
             if chunk:
-                # Связываем future с его chunk_id
                 future = executor.submit(tokenize_chunk, chunk, tokenizer_path, max_length, min_stride, max_stride,
                                          chunk_id)
                 futures[future] = chunk_id
                 chunk_id += 1
 
-    # Сбор результатов ПОСЛЕ завершения всех задач
     results = {}
     logging.info("Сбор результатов от дочерних процессов...")
     for future in tqdm(as_completed(futures), total=len(futures), desc="Сбор результатов"):
